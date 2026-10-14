@@ -1,0 +1,8 @@
+{
+  "appId": "com.leophysio.telcb2",
+  "appName": "TELC B2",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  }
+}

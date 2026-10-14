@@ -1,0 +1,95 @@
+name: apk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Préparer le dossier www
+        run: |
+          mkdir -p www
+          if [ ! -f www/index.html ]; then
+            if [ -f index.html ]; then
+              cp index.html www/index.html
+            else
+              echo "::error::index.html introuvable. Mets-le à la racine du dépôt ou dans le dossier www/."
+              ls -la
+              exit 1
+            fi
+          fi
+          ls -la www
+
+      - name: Installer les dépendances
+        run: |
+          if [ ! -f package.json ]; then
+            npm init -y
+            npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          else
+            npm install
+          fi
+
+      - name: Créer la configuration Capacitor
+        run: |
+          if [ ! -f capacitor.config.json ]; then
+            cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.leophysio.telcb2",
+            "appName": "TELC B2",
+            "webDir": "www",
+            "android": { "allowMixedContent": true }
+          }
+          JSON
+          fi
+          cat capacitor.config.json
+
+      - name: Créer le projet Android
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+
+      - name: Synchroniser le site web dans l'app
+        run: npx cap sync android
+
+      - name: Compiler l'APK (debug)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Renommer l'APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk TELC-B2.apk
+
+      - name: Publier l'APK (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: telc-b2-apk
+          path: TELC-B2.apk
+
+      - name: Publier l'APK (Release, téléchargement direct)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: TELC B2 — dernière APK
+          body: "APK debug générée automatiquement. Télécharge TELC-B2.apk puis installe-la."
+          files: TELC-B2.apk
